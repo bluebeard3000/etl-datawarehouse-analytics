@@ -1,9 +1,6 @@
 import pandas as pd
 import mysql.connector
 
-# =======================================================
-# 1) CONFIGURATION
-# =======================================================
 CSV_FILE = r"C:\Users\HP\Downloads\stg_sales_raw\project.csv"
 CHUNK_SIZE = 50000   # larger chunks = faster loading
 
