@@ -1,1 +1,202 @@
+import pandas as pd
+import mysql.connector
+
+# =======================================================
+# 1) CONFIGURATION
+# =======================================================
+CSV_FILE = r"C:\Users\HP\Downloads\stg_sales_raw\project.csv"
+CHUNK_SIZE = 50000   # larger chunks = faster loading
+
+MYSQL_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'MySQL2025!',
+    'database': 'retail_dw',
+    'allow_local_infile': True
+}
+
+
+conn = mysql.connector.connect(**MYSQL_CONFIG)
+cursor = conn.cursor()
+
+
+cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
+cursor.execute("DROP TABLE IF EXISTS fact_sales;")
+cursor.execute("DROP TABLE IF EXISTS dim_customer;")
+cursor.execute("DROP TABLE IF EXISTS dim_product;")
+cursor.execute("DROP TABLE IF EXISTS dim_date;")
+cursor.execute("DROP TABLE IF EXISTS dim_country;")
+cursor.execute("DROP TABLE IF EXISTS stg_sales_raw;")
+
+cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+
+cursor.execute("""
+CREATE TABLE stg_sales_raw (
+    invoice_id VARCHAR(50),
+    product_id VARCHAR(50),
+    description_prd TEXT,
+    quantity_prd INT,
+    invoice_date DATE,
+    unit_price DECIMAL(10,4),
+    total_price DECIMAL(12,3),
+    customer_id VARCHAR(50),
+    country VARCHAR(100)
+);
+""")
+
+cursor.execute("""
+CREATE TABLE dim_customer (
+    customer_key INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id VARCHAR(50),
+    country VARCHAR(100),
+    UNIQUE(customer_id)
+);
+""")
+
+cursor.execute("""
+CREATE TABLE dim_product (
+    product_key INT AUTO_INCREMENT PRIMARY KEY,
+    product_id VARCHAR(50),
+    description_prd TEXT,
+    unit_price DECIMAL(10,4),
+    UNIQUE(product_id)
+);
+""")
+
+cursor.execute("""
+CREATE TABLE dim_date (
+    date_key INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_date DATE,
+    UNIQUE(invoice_date)
+);
+""")
+
+cursor.execute("""
+CREATE TABLE dim_country (
+    country_key INT AUTO_INCREMENT PRIMARY KEY,
+    country VARCHAR(100),
+    UNIQUE(country)
+);
+""")
+
+cursor.execute("""
+CREATE TABLE fact_sales (
+    fact_key INT AUTO_INCREMENT PRIMARY KEY,
+    date_key INT,
+    product_key INT,
+    customer_key INT,
+    country_key INT,
+    quantity_prd INT,
+    total_price DECIMAL(12,3),
+    FOREIGN KEY (date_key) REFERENCES dim_date(date_key),
+    FOREIGN KEY (product_key) REFERENCES dim_product(product_key),
+    FOREIGN KEY (customer_key) REFERENCES dim_customer(customer_key),
+    FOREIGN KEY (country_key) REFERENCES dim_country(country_key)
+);
+""")
+
+conn.commit()
+print("\n All tables created successfully!")
+
+
+for chunk in pd.read_csv(
+        CSV_FILE,
+        chunksize=CHUNK_SIZE,
+        parse_dates=['invoice_date'],
+        dtype={'invoice_id': str, 'product_id': str, 'customer_id': str}):
+
+    chunk.to_sql = None  # ignore pandas sql helper
+
+    for _, row in chunk.iterrows():
+        cursor.execute("""
+            INSERT INTO stg_sales_raw VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            row['invoice_id'], row['product_id'], row['description_prd'],
+            row['quantity_prd'], row['invoice_date'].date() if pd.notnull(row['invoice_date']) else None,
+            row['unit_price'], row['total_price'], row['customer_id'], row['country']
+        ))
+
+    conn.commit()
+    print(f"Inserted {len(chunk)} rows into staging...")
+
+print("\n Staging load complete!")
+
+
+cursor.execute("INSERT IGNORE INTO dim_customer (customer_id,country) VALUES ('UNKNOWN',NULL)")
+cursor.execute("INSERT IGNORE INTO dim_product (product_id,description_prd,unit_price) VALUES ('UNKNOWN',NULL,NULL)")
+cursor.execute("INSERT IGNORE INTO dim_date (invoice_date) VALUES (NULL)")
+cursor.execute("INSERT IGNORE INTO dim_country (country) VALUES ('UNKNOWN')")
+conn.commit()
+
+
+cursor.execute("""
+INSERT IGNORE INTO dim_customer (customer_id, country)
+SELECT DISTINCT customer_id, country
+FROM stg_sales_raw
+WHERE customer_id IS NOT NULL;
+""")
+
+cursor.execute("""
+INSERT IGNORE INTO dim_product (product_id, description_prd, unit_price)
+SELECT DISTINCT product_id, description_prd, unit_price
+FROM stg_sales_raw
+WHERE product_id IS NOT NULL;
+""")
+
+cursor.execute("""
+INSERT IGNORE INTO dim_date (invoice_date)
+SELECT DISTINCT invoice_date
+FROM stg_sales_raw
+WHERE invoice_date IS NOT NULL;
+""")
+
+cursor.execute("""
+INSERT IGNORE INTO dim_country (country)
+SELECT DISTINCT country
+FROM stg_sales_raw
+WHERE country IS NOT NULL;
+""")
+
+conn.commit()
+print("\n Dimension tables loaded successfully!")
+
+
+cursor.execute("TRUNCATE TABLE fact_sales;")
+conn.commit()
+
+cursor.execute("""
+INSERT INTO fact_sales (date_key, product_key, customer_key, country_key, quantity_prd, total_price)
+SELECT 
+    COALESCE(d.date_key, 1),
+    COALESCE(p.product_key, 1),
+    COALESCE(c.customer_key, 1),
+    COALESCE(ct.country_key, 1),
+    s.quantity_prd,
+    s.total_price
+FROM stg_sales_raw s
+LEFT JOIN dim_date d ON s.invoice_date = d.invoice_date
+LEFT JOIN dim_product p ON s.product_id = p.product_id
+LEFT JOIN dim_customer c ON s.customer_id = c.customer_id
+LEFT JOIN dim_country ct ON s.country = ct.country;
+""")
+conn.commit()
+
+print("\n FACT table load complete! (Strict 1:1 guaranteed)")
+
+
+cursor.execute("SELECT COUNT(*) FROM stg_sales_raw;")
+stg = cursor.fetchone()[0]
+cursor.execute("SELECT COUNT(*) FROM fact_sales;")
+fact = cursor.fetchone()[0]
+
+print(f"\nVerification:")
+print(f"Staging Rows = {stg}")
+print(f"Fact Rows    = {fact}")
+print(f"Match?       = {' YES' if stg == fact else ' NO'}")
+
+
+cursor.close()
+conn.close()
+print("\n ETL Completed Successfully!")
 
