@@ -1,1 +1,9 @@
+3. Load (Chargement)
+Les données nettoyées et enrichies sont chargées dans un Data Warehouse créé sous MySQL.
 
+Création d’une base de données nommée e_commerce dans MySQL.
+Utilisation de l’étape « Insertion dans table » :
+Configuration de la connexion à la base MySQL.
+Génération du code SQL pour créer les tables si nécessaire.
+Exécution de l’ensemble du flux ETL pour insérer toutes les lignes transformées dans les tables de la base.
+Objectif : Avoir des données propres, structurées et prêtes pour les analyses BI et les visualisations.
