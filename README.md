@@ -45,4 +45,7 @@ Analysis of customer behavior, showing Top Clients by revenue and detailed count
 ### Contributors:
 - Zhour Ouihlane
 - Malak Rhalem
+- L'BREK Oumaima
+- Iddouch Marwa
+- Ililou Laila
 
