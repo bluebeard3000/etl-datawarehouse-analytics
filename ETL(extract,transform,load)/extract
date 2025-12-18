@@ -1,1 +1,7 @@
+1. Extract (Extraction)
+Les données brutes des ventes sont extraites à partir d’un fichier CSV.
 
+On utilise l’étape « Extraction depuis fichier CSV ».
+On configure le chemin du fichier source.
+On exécute l’étape pour vérifier que les données sont bien lues correctement.
+Objectif : Récupérer l’ensemble des transactions du magasin sans aucune modification.
