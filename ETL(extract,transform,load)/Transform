@@ -1,1 +1,19 @@
+2. Transform (Transformation)
+Cette étape consiste à nettoyer, structurer et enrichir les données pour les rendre cohérentes et exploitables.
+Elle est divisée en trois sous-étapes :
 
+2-1) Préparation des données
+Utilisation de l’étape « Altération structure flux » :
+Renommer les colonnes pour plus de clarté.
+Définir les types de données de chaque colonne (ex. : date, nombre, texte).
+Spécifier le format des dates.
+
+2-2) Nettoyage des données
+Utilisation de l’étape « String Operations » :
+Suppression des espaces inutiles (trim des deux côtés) sur les colonnes comme description_prd et country.
+Conversion en minuscule des descriptions de produits pour éviter les différences de casse 
+
+2-3) Enrichissement des données
+Utilisation de l’étape « Création d’opération de calcul » :
+Création d’un nouveau champ Total = quantité vendue × prix unitaire.
+Cela permet d’avoir directement le montant de chaque transaction pour faciliter les analyses financières.
